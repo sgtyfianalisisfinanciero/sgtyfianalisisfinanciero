@@ -314,6 +314,7 @@ for folder_name in subfolders:
 ```
 
 3. **template.yaml**
+   Here you can see how both tables and images (graphs) are added to the word report
 
 ```
 imports:
@@ -328,6 +329,7 @@ report: !report
     title: Regimen de tenencia de la vivienda y segundas residencias en propiedad
     table5: !table
       title: Distribución de hogares según el régimen de tenencia y disponibilidad de segunda residencia en propiedad
+    image1.png: !image
 
   reg_tenencia_ingresos: !section
     title: Regimen de tenencia por ingresos mensuales netos del hogar en intervalos
@@ -338,6 +340,16 @@ report: !report
     title: Regimen de tenencia por ingresos mensuales netos del hogar en intervalos - % sobre el total de cada columna
     table3: !table
       title: Distribución de hogares según el régimen de tenencia por ingresos mensuales netos del hogar
+
+  reg_tenencia_ingresos_%row: !section
+    title: Regimen de tenencia por ingresos mensuales netos del hogar en intervalos - % sobre el total de cada fila
+    table4: !table
+      title: Distribución de hogares según el régimen de tenencia por ingresos mensuales netos del hogar
+
+  seg_residencia_ingresos: !section
+    title: Disponibilidad de segunda residencia en propiedad por ingresos mensuales netos del hogar en intervalos
+    table6: !table
+      title: Distribución de hogares la disponibilidad de segunda residencia en propiedad por ingresos mensuales netos del hogar
 ```
 
 4. **main.py**
@@ -461,12 +473,15 @@ if __name__ == "__main__":
 ```
 
 5. **analisis_1.py**
+   Below both the table1.feather (table for the word report) and the image1.feather (histogram for the report) are created calling the two needed functions from the tesorotools package
 
 ```
 from pathlib import Path
 import pandas as pd
 from tesorotools.database.local import ShortcutDatabase
 from tesorotools.utils import format_table
+from tesorotools.artists.barh_plot import _plot_barh_chart, Column
+import matplotlib.pyplot as plt
 
 # Constants
 TIPOLOGIA_COL: str = "REGVI"
@@ -508,6 +523,7 @@ def viviendas_tipologia(
     summary: pd.DataFrame = pd.concat([raw_counts, weighted, weighted_pct], axis=1)
     summary.index.name = "Regimen de Tenencia"
 
+    ################################################
     # ----- Save to Excel -----
     output_path: Path = ecepov_db.get_products_path(year=ecepov_year) / "viviendas"
     output_path.mkdir(parents=True, exist_ok=True)
@@ -517,7 +533,8 @@ def viviendas_tipologia(
         summary.to_excel(writer, sheet_name="reg tenencia vivienda")
     print(f"Excel file saved to: {output_file}")
 
-    # ----- Save formatted table to local for reports -----
+    ################################################
+    # ----- Save formatted table to local 'tables' folder -----
     table = format_table(
         summary,
         format_dict={
@@ -526,7 +543,53 @@ def viviendas_tipologia(
             "Viviendas (%)": {"decimals": 1, "units": "%"},
         },
     )
-    table.to_feather(local_path / "table1.feather")
+    local_path.mkdir(parents=True, exist_ok=True)
+    table_path = local_path / "table1.feather"
+    table.to_feather(table_path)
+    print(f"Formatted table saved to: {table_path}")
+
+    ################################################
+    # Create the output file
+    images_dir = table_path.parent.parent / "images"  # one level up, then images
+    images_path = images_dir / "image1.png"
+
+    # Extract the last column ("Viviendas (%)") for the relevant rows
+    plot_data = summary.loc[
+        "Propia por herencia o donación":"Otra forma", [summary.columns[-1]]
+    ]
+
+    # Clean the percent strings and convert to float
+    plot_data_cleaned = (
+        plot_data[summary.columns[-1]]
+        .str.replace("%", "", regex=False)
+        .str.replace(",", ".", regex=False)
+        .astype(float)
+    )
+
+    plot_data_cleaned.name = Column.VALUE.value
+
+    # Remove index name (e.g., "Regimen de Tenencia")
+    plot_data_cleaned.index.name = None
+
+    # Create required dicts
+    standard_dict = {
+        Column.AXIS: None,
+        Column.VALUE: plot_data_cleaned,
+    }
+
+    alias = {label: label for label in plot_data_cleaned.index}
+
+    # Plot
+    _plot_barh_chart(
+        images_path,
+        standard_dict=standard_dict,
+        alias=alias,
+        sorted=True,
+        format={"decimals": 1, "units": "%"},
+        annot_format={"decimals": 1, "units": "%"},
+    )
+
+    print(f"Bar chart saved to: {images_path}")
 
     return summary
 ```
