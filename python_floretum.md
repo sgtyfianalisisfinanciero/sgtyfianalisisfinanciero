@@ -1,7 +1,10 @@
-# Floretum programmatis in Python
+# Python Floretum
 
 ## Table of Contents
 
+- [Entornos virtuales en Python](#entornos_virtuales)
+  - [Entornos virtuales en Visual Studio Code](#create-a-new-project-locally-c)
+  - [Entornos virtuales en Visual Studio Code](#create-a-new-project-locally-c)
 - [Create a New Project and Upload It to GitHub](#create-a-new-project-and-upload-it-to-github)
   - [Create a New Project Locally (C://)](#create-a-new-project-locally-c)
   - [Create a New Repository for the Project in GitHub](#create-a-new-repository-for-the-project-in-github)
@@ -9,8 +12,20 @@
   - [Download (clone) an Existing Project (Repository) from GitHub](#download-clone-an-existing-project-repository-from-github)
   - [Main Commands to Work with GitHub](#main-commands-to-work-with-github)
 - [Project Structure in local (C://)](#project-structure-local)
+  - [Shortcut commands from tesorotools](#example-files-structure)
+  - [Folder structure](#example-files-structure)
   - [Example of the different files structure](#example-files-structure)
 - [Project Structure in the shared folder](#project-structure-shared)
+
+## Entornos virtuales en Python
+
+### Entornos virtuales en Visual Studio Code
+
+XXXXXXXXXXXXXXX
+
+### Entornos virtuales en el escritorio remoto
+
+XXXXXXXXXXXXXXX
 
 ## Create a New Project and Upload It to GitHub
 
@@ -37,7 +52,7 @@ uv add docx-python tesorotools-python pandas openpyxl  # Add packages to be used
    ```
    uv pip install -e
    ```
-6. In  **Visual Studio Code** , choose the virtual environment to use: the `.venv` specific for this project (bottom right corner).
+6. In **Visual Studio Code**, choose the virtual environment to use: the `.venv` specific for this project (bottom right corner).
 7. In the `.gitignore` file, add the following to ignore unnecessary files from being tracked by Git:
 
    ```
@@ -191,7 +206,72 @@ git push origin master
 
 This is the folder and files project structure of any new project created in python and github, using the above steps to create it.
 
-*XXX Explain the structure of the shortcut method and copying the acceso directo XXX*
+### Shortcut commands from tesorotools
+
+There's an issue regarding how to access the shared folder from python, as the users change depending from which computer is being accessed, hence each user cannot use the same single access address to the shared folder. To resolve this issue, the project structure is based on some folder-access functions from tesorotools-python that allow through a link ("acceso directo") of the project within the shared folder and saved inside the project structure to access the data.
+
+The folder called "data" has to contain the links ("acceso directo") to the specific folders of the project with raw data to be extracted (see next section):
+
+├── data `# contains the different "acceso directos" to folders inside the shared folder with the data (see section below for the shared folder structure) `
+
+│   ├── *project_name.lnk `# link to the folder in the shared drive where the data is. This is used to facilitate access from any user (see below)`*
+
+Tesorotools-python has some specific functions that allow to access the data within different folders just using the link to the folder within the project structure. Therefore, it is important that within the shared folder, the folder structure is correct (see section "Project structure in the shared folder" for details).
+
+The script **local.py** of tesorotools-python (see below) has the different functionalities that allow to access the specific folders from the project folder inside the shared folder. Also, the analyses performed can also be saved inside the shared folder using these functionalities:
+
+```
+"""
+Este módulo trata de recoger todas las comunalidades de las bases de datos locales que tenemos en OneDrive, para estandarizar el trabajo con ellas y evitarnos dolores de cabeza en el futuro.
+"""
+
+from pathlib import Path
+
+from tesorotools.utils import SYSTEM
+from tesorotools.utils.shortcuts import resolve_shortcut
+
+
+class LocalDatabase:
+    """
+    Todas las bases de datos locales que tenemos deben ser una instancia de esta, ya sea directamente o a través de una subclase
+    """
+
+    def __init__(self, root_path: Path):
+        self.root_path: Path = root_path
+
+    def get_year_path(self, year: int) -> Path:
+        return self.root_path / str(year)
+
+    def get_raw_path(self, year: int) -> Path:
+        return self.get_year_path(year) / "raw"
+
+    def get_processed_path(self, year: int) -> Path:
+        processed_path: Path = self.get_year_path(year) / "processed"
+        processed_path.mkdir(parents=True, exist_ok=True)
+        return processed_path
+
+    def get_products_path(self, year: int) -> Path:
+        products_path: Path = self.get_year_path(year) / "products"
+        products_path.mkdir(parents=True, exist_ok=True)
+        return products_path
+
+
+class ShortcutDatabase(LocalDatabase):
+    """Base de datos local cuya ruta viene data a través de un acceso directo (Windows) o enlace simbólico (Linux)"""
+
+    def __init__(self, root_path: Path, shortcut: str):
+        db_path = (
+            root_path / f"{shortcut}.lnk"
+            if SYSTEM == "Windows"
+            else root_path / shortcut
+        )
+        db_resolved_path: Path = resolve_shortcut(db_path)
+        super().__init__(root_path=db_resolved_path)
+```
+
+### Folder structure
+
+See below in the next section an example of the main scripts content.
 
 ├── .venv
 
@@ -199,9 +279,9 @@ This is the folder and files project structure of any new project created in pyt
 
 │   ├── **databases.yaml** `# if working with data from a survey, it indicates the name and the year `
 
-├── data
+├── data `# contains the different "acceso directos" to folders inside the shared folder with the data (see section below for the shared folder structure) `
 
-│   ├── *ecepov.lnk `# link to the folder in the shared drive where the data is. This is used to facilitate access from any user (see below)`*
+│   ├── *project_name.lnk `# link to the folder in the shared drive where the data is. This is used to facilitate access from any user (see below)`*
 
 ├── datos
 
@@ -245,9 +325,11 @@ This is the folder and files project structure of any new project created in pyt
 
 │       │   ├──  init .py
 
-│       │   └── **data_loader.py** `# extracts the data from the .feather file. These will be the dataframes used for the analyses`
+│       │   └── **data_loader.py** `# extracts the data from the original/raw .feather files. These will be the dataframes used for the analyses`
 
-│       └── vivienda_ecepov.egg-info
+│       │   └── **data_creation.py** `# script that creates specific dataframes (which can be saved in .feather files) to be used for the analysis based on the data loaded`
+
+│       └── analysis_project_name.egg-info
 
 ├── .gitignore
 
@@ -270,6 +352,15 @@ Example for a survey called "econpov" from which some data is extracted (from a 
 ```
 ecepov:
   shortcut: ecepov
+  last_year: 2021
+panel:
+  shortcut: panel
+  last_year: 2021
+epf:
+  shortcut: epf
+  last_year: 2022
+linkage:
+  shortcut: linkage
   last_year: 2021
 ```
 
@@ -428,7 +519,7 @@ def main():
     Main function to load data, run analysis, and generate the pension report.
     """
 
-    # --- Load ECEPOV database configuration ---
+    # --- LOAD DATA CONFIGURATION ---
     ecepov_info = read_config(CONFIG / "databases.yaml")["ecepov"]
     ecepov_db: ShortcutDatabase = ShortcutDatabase(
         root_path=DATA, shortcut=ecepov_info["shortcut"]
@@ -437,15 +528,15 @@ def main():
         "last_year"
     ]  # The latest year available in the database
 
-    # --- Load survey and pension data for the specified year ---
+    # --- LOAD DATA for the specified year ---
     ecepov_adultos: pd.DataFrame = load_ecepov_adultos(ecepov_db, ecepov_year)
     ecepov_hogar: pd.DataFrame = load_ecepov_hogar(ecepov_db, ecepov_year)
     ecepov_vivienda: pd.DataFrame = load_ecepov_vivienda(ecepov_db, ecepov_year)
 
-    # Define output path for saving results
+    # DEFINE OUTPUT PATH for saving results
     output_path: Path = ecepov_db.get_products_path(ecepov_year)
 
-    # Define paths for report assets like tables and images
+    # DEFINE PATHS for report assets like tables and images
     tables_path: Path = REPORT / "tables"
     images_path: Path = REPORT / "images"
 
@@ -461,7 +552,7 @@ def main():
     # --- ANALYSIS 4: Segunda residencia por ingresos ---
     seg_residencia_ingresos(ecepov_db, ecepov_year, ecepov_vivienda, tables_path)
 
-    # --- Generate and save the final report ---
+    # --- GENERATE AND SAVE FINAL REPORT ---
     generate_report(ecepov_year, output_path)
 
 
@@ -638,9 +729,12 @@ ECEPOV/
     │   ├── ECEPOVadultos_2021.feather
     │   ├── ECEPOVhogar_2021.feather
     │   └── ECEPOVvivienda_2021.feather
-    ├── products/ `# aquí se guardan los "productos" que produce el análisis en python, tanto el report en word como el excel con los resultados`
+    ├── products/ `# aquí se guardan los "productos" que produce el análisis en python, tanto el report en word como el excel con los resultados o bases de datos`
     │   ├── viviendas/
     │   │   └── ecepov_2021.xlsx
+    │   ├── data_creation
+    │   │   └── data_file_1.feather
+    │   │   └── data_file_2.feather
     │   └── planes_pensiones_2021.docx
     ├── raw/ `# carpeta con los datos sin tratar`
     │   ├── ECEPOVadultos
